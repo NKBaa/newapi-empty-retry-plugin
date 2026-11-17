@@ -17,8 +17,10 @@ test("declares plugin provider routes", () => {
   assert.equal(meta.key, "newapi-empty-retry")
   assert.deepEqual(meta.relay.map((route) => route.incoming_path), [
     "/v1/chat/completions",
+    "/v1/completions",
     "/v1/responses",
     "/v1/messages",
+    "/v1/models/{model}:generateContent",
     "/v1beta/models/{model}:generateContent",
   ])
   assert.ok(meta.relay.every((route) => route.converter === "plugin"))
@@ -56,12 +58,16 @@ test("maps an empty stream to retryable 400 before releasing events", () => {
   assert.equal(result.events, undefined)
   ctx.state = result.state
 
+  result = convertStreamEvent(ctx, { data: "[DONE]" })
+  assert.equal(result.events, undefined)
+  ctx.state = result.state
+
   result = convertStreamEvent(ctx, { done: true })
   assert.equal(result.error.status, 400)
   assert.equal(result.error.code, "empty_upstream_response")
 })
 
-test("buffers role events then releases them with the first content event", () => {
+test("buffers role events then releases them with the first content event and forwards [DONE]", () => {
   const ctx = { state: taskState() }
   let result = convertStreamEvent(ctx, { data: '{"choices":[{"delta":{"role":"assistant"}}]}' })
   ctx.state = result.state
@@ -74,6 +80,12 @@ test("buffers role events then releases them with the first content event", () =
   result = convertStreamEvent(ctx, { data: '{"choices":[{"delta":{"content":" world"}}]}' })
   assert.equal(result.events.length, 1)
   assert.equal(result.events[0].data, '{"choices":[{"delta":{"content":" world"}}]}')
+  ctx.state = result.state
+
+  result = convertStreamEvent(ctx, { data: "[DONE]" })
+  assert.equal(result.events.length, 1)
+  assert.equal(result.events[0].data, "[DONE]")
+  ctx.state = result.state
 
   result = convertStreamEvent(ctx, { done: true })
   assert.equal(result.error, undefined)
@@ -98,6 +110,12 @@ test("supports Responses and Anthropic stream events", () => {
     data: '{"type":"content_block_delta","delta":{"type":"text_delta","text":"hello"}}',
   })
   assert.equal(result.state.seen, true)
+
+  result = convertStreamEvent({ state: taskState() }, {
+    event: "content_block_delta",
+    data: '{"type":"content_block_delta","delta":{"type":"input_json_delta","partial_json":"{\"q\":"}}',
+  })
+  assert.equal(result.state.seen, true)
 })
 
 test("preserves upstream non-2xx errors", () => {
@@ -107,16 +125,21 @@ test("preserves upstream non-2xx errors", () => {
   assert.equal(result.error.code, "rate_limited")
 })
 
-
-test("uses the Gemini streaming endpoint with SSE for streaming requests", () => {
-  const result = convertRequest({}, {
-    path: "/v1beta/models/gemini-2.5-flash:streamGenerateContent",
+test("uses the Gemini streaming endpoint with SSE from ctx.path or request.path", () => {
+  const fromCtx = convertRequest({ path: "/v1beta/models/gemini-2.5-flash:generateContent" }, {
     body: { contents: [] },
     model: "gemini-2.5-flash",
     stream: true,
   })
-  assert.equal(result.path, "/v1beta/models/gemini-2.5-flash:streamGenerateContent?alt=sse")
-  assert.equal(result.contentType, "application/json")
+  assert.equal(fromCtx.path, "/v1beta/models/gemini-2.5-flash:streamGenerateContent?alt=sse")
+
+  const fromReq = convertRequest({}, {
+    path: "/v1/models/gemini-1.5-pro:generateContent",
+    body: { contents: [] },
+    model: "gemini-1.5-pro",
+    stream: true,
+  })
+  assert.equal(fromReq.path, "/v1/models/gemini-1.5-pro:streamGenerateContent?alt=sse")
 })
 
 test("recognizes nested and completed Responses output", () => {
@@ -160,4 +183,12 @@ test("uses a separate retryable error when pre-output buffering exceeds its limi
   }
   assert.equal(result.error.status, 502)
   assert.equal(result.error.code, "empty_response_buffer_exceeded")
+})
+
+test("safely handles event without data field", () => {
+  const ctx = { state: taskState() }
+  const result = convertStreamEvent(ctx, { event: "ping" })
+  assert.equal(result.state.pending.length, 1)
+  assert.equal(result.state.pending[0].data, "")
+  assert.equal(result.state.pending[0].event, "ping")
 })

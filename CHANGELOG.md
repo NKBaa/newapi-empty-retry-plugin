@@ -1,5 +1,16 @@
 # Changelog
 
+## [1.3.0] - 2026-11-17
+
+### Fixed
+
+- Support extracting Gemini stream path from `ctx.path` (New API production hook context) as well as `request.path`.
+- Forward `data: [DONE]` to clients on active streams while continuing to suppress it during empty streams.
+- Ensure buffered stream events always populate the `data` member to satisfy New API plugin stream event decoding.
+- Detect Anthropic streaming tool deltas (`partial_json`) and Gemini reasoning thoughts (`thought`).
+- Add `/v1/completions` and `/v1/models/{model}:generateContent` to declared relay routes.
+- Safely forward upstream binary responses without misclassifying them as empty.
+
 ## [1.2.0] - 2026-11-17
 
 ### Fixed

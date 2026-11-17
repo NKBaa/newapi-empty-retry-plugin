@@ -2,7 +2,7 @@ export const meta = {
   apiVersion: 1,
   key: "newapi-empty-retry",
   name: "NewAPI Empty Retry",
-  version: "1.2.0",
+  version: "1.3.0",
   author: { name: "NKBaa" },
   description: {
     en: "Relay an upstream New API / One API channel and turn empty JSON or SSE answers into retryable HTTP 400 empty_upstream_response.",
@@ -10,8 +10,10 @@ export const meta = {
   },
   relay: [
     { incoming_path: "/v1/chat/completions", upstream_path: "/v1/chat/completions", converter: "plugin" },
+    { incoming_path: "/v1/completions", upstream_path: "/v1/completions", converter: "plugin" },
     { incoming_path: "/v1/responses", upstream_path: "/v1/responses", converter: "plugin" },
     { incoming_path: "/v1/messages", upstream_path: "/v1/messages", converter: "plugin" },
+    { incoming_path: "/v1/models/{model}:generateContent", upstream_path: "/v1/models/{model}:generateContent", converter: "plugin" },
     { incoming_path: "/v1beta/models/{model}:generateContent", upstream_path: "/v1beta/models/{model}:generateContent", converter: "plugin" },
   ],
 }
@@ -39,13 +41,14 @@ function meaningfulPart(part) {
   if (typeof part === "string") return text(part)
   if (typeof part !== "object") return false
   if (text(part.text) || text(part.content) || text(part.refusal)) return true
-  if (text(part.reasoning_content) || text(part.reasoning) || text(part.thinking)) return true
+  if (text(part.reasoning_content) || text(part.reasoning) || text(part.thinking) || text(part.thought)) return true
+  if (text(part.partial_json)) return true
   if (part.type === "tool_use" || part.type === "tool_result" || part.type === "function_call") return true
   if (part.function_call || part.functionCall || part.tool_calls?.length) return true
   if (part.type === "image" || part.type === "image_url" || part.type === "input_image") {
     return !!(part.image_url || part.source || part.data)
   }
-  return !!(part.name && part.arguments)
+  return !!(text(part.name) && (part.arguments !== undefined || part.args !== undefined))
 }
 
 function meaningfulContent(content) {
@@ -69,6 +72,7 @@ function meaningfulOutputItem(item) {
   if (!item || typeof item !== "object") return false
   if (["function_call", "computer_call", "web_search_call", "tool_call"].includes(item.type)) return true
   if (item.function_call || item.functionCall || item.tool_calls?.length) return true
+  if (text(item.text) || text(item.reasoning)) return true
   if (meaningfulContent(item.content)) return true
   if (item.type === "reasoning" && Array.isArray(item.summary)) {
     return item.summary.some((part) => text(part?.text) || meaningfulPart(part))
@@ -132,9 +136,8 @@ function meaningfulData(data, eventName) {
 }
 
 function eventOf(input) {
-  const event = {}
-  if (input.event !== undefined) event.event = input.event
-  if (input.data !== undefined) event.data = input.data
+  const event = { data: input.data !== undefined ? String(input.data) : "" }
+  if (input.event !== undefined) event.event = String(input.event)
   return event
 }
 
@@ -172,13 +175,18 @@ function upstreamError(response) {
   return { error: { status, type, code, message: messageOf(response.body) } }
 }
 
-function geminiStreamPath(request) {
-  if (!request.stream || typeof request.path !== "string" || !request.path.startsWith("/v1beta/models/")) return ""
-  const path = request.path.replace(/:generateContent$/, ":streamGenerateContent")
-  return path.endsWith(":streamGenerateContent") ? `${path}?alt=sse` : ""
+function geminiStreamPath(ctx, request) {
+  const path = ctx?.path || request?.path
+  if (!request?.stream || typeof path !== "string") return ""
+  if (!path.startsWith("/v1beta/models/") && !path.startsWith("/v1/models/")) return ""
+  const streamPath = path.replace(/:generateContent(\?.*)?$/, ":streamGenerateContent")
+  if (streamPath.includes(":streamGenerateContent")) {
+    return streamPath.includes("?alt=sse") ? streamPath : `${streamPath.replace(/\?.*$/, "")}?alt=sse`
+  }
+  return ""
 }
 
-export function convertRequest(_ctx, request) {
+export function convertRequest(ctx, request) {
   if (request.form) {
     return { form: request.form, stream: request.stream, state: { seen: false, pending: [] } }
   }
@@ -188,13 +196,14 @@ export function convertRequest(_ctx, request) {
     stream: request.stream,
     state: { seen: false, pending: [] },
   }
-  const streamPath = geminiStreamPath(request)
+  const streamPath = geminiStreamPath(ctx, request)
   if (streamPath) converted.path = streamPath
   return converted
 }
 
 export function convertResponse(_ctx, response) {
   if (response.status < 200 || response.status >= 300) return upstreamError(response)
+  if (response.bodyBase64) return { bodyBase64: response.bodyBase64, contentType: contentTypeOf(response) }
   const body = typeof response.body === "string" ? response.body : String(response.body ?? "")
   if (!body.trim()) return { error: EMPTY_ERROR }
 
@@ -216,10 +225,12 @@ export function convertStreamEvent(ctx, input) {
     return { state }
   }
 
-  if (input.data === "[DONE]") return { state }
-
   if (state.seen) {
     return { events: [eventOf(input)], state }
+  }
+
+  if (typeof input.data === "string" && input.data.trim() === "[DONE]") {
+    return { state }
   }
 
   if (meaningfulData(input.data, input.event)) {
@@ -234,8 +245,3 @@ export function convertStreamEvent(ctx, input) {
   }
   return { state: next }
 }
-
-
-
-
-

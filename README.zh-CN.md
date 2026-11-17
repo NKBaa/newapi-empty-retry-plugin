@@ -56,9 +56,11 @@ newapi-empty-retry
 插件声明以下路由：
 
 - `POST /v1/chat/completions`
+- `POST /v1/completions`
 - `POST /v1/responses`
 - `POST /v1/messages`
-- Gemini `generateContent` 和 `streamGenerateContent`
+- `POST /v1/models/{model}:generateContent`
+- `POST /v1beta/models/{model}:generateContent`
 
 ## 空回错误
 

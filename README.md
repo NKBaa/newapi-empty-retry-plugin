@@ -98,8 +98,8 @@ Non-stream responses:
 Streaming responses:
 
 - all events before the first useful output are buffered;
-- when text, reasoning, tool calls or another supported output arrives, buffered events are released unchanged;
-- if the stream ends without any useful output, no client event has been released and the plugin returns HTTP `400`;
+- when text, reasoning, tool calls or another supported output arrives, buffered events are released unchanged, and `data: [DONE]` is forwarded normally when the active stream completes;
+- if the stream ends without any useful output, `data: [DONE]` is suppressed and the plugin returns HTTP `400` to trigger channel retry;
 - if more than 64 events or 32768 serialized characters are buffered before the first useful output, the plugin returns a separate HTTP `502 empty_response_buffer_exceeded`, which follows the 5xx retry policy instead of being reported as empty;
 - New API stream keepalive may send a PING before the first useful output and commit HTTP 200. Internal retries can still continue, but an exhausted retry budget may end an already-open stream instead of returning 400 to the client. Disable the relevant keepalive or Ping when the client must receive the 400 status.
 
