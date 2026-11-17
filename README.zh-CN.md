@@ -13,7 +13,11 @@ New API 默认自动重试状态范围包含 `409-499`，所以 `404` 会触发�
 
 ## 安装
 
-通过 New API 插件管理器安装 `plugin.js`，或安装本仓库对应版本。
+通过 New API 插件管理器安装 `plugin.js`：
+
+```text
+https://raw.githubusercontent.com/NKBaa/newapi-empty-404-plugin/main/plugin.js
+```
 
 插件 key：
 
@@ -112,4 +116,5 @@ fixture 覆盖空 JSON、正常 JSON、role 事件缓冲、首个内容事件释
 - 为保证流式空回也能在发送首个事件前返回 `404`，流会等待到第一个有效输出才开始释放。
 - 非 JSON 的流事件按非空处理并原样透传。
 - 插件不修改 New API 核心重试策略，只负责产生可重试的 `404`。
+
 

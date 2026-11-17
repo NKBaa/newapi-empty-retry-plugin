@@ -14,7 +14,11 @@ New API's default automatic retry ranges include `409-499`, so `404` is retryabl
 
 ## Install
 
-Install `plugin.js` through the New API plugin manager, or install this repository at the version you want to use.
+Install `plugin.js` through the New API plugin manager:
+
+```text
+https://raw.githubusercontent.com/NKBaa/newapi-empty-404-plugin/main/plugin.js
+```
 
 Plugin key:
 
@@ -113,4 +117,5 @@ The fixture suite checks empty JSON, non-empty JSON, buffered role events, first
 - A stream is delayed until its first useful output because events are held to guarantee a pre-stream `404`.
 - Non-JSON stream data is treated as non-empty and passed through.
 - This plugin does not change New API core retry policy; it only supplies a retryable `404`.
+
 
