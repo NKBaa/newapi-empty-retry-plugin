@@ -1,0 +1,38 @@
+{
+  "name": "newapi-empty-404-plugin",
+  "version": "1.0.0",
+  "description": "New API plugin that maps empty upstream JSON or SSE responses to HTTP 404 model_not_found.",
+  "type": "module",
+  "main": "./plugin.js",
+  "files": [
+    "plugin.js",
+    "README.md",
+    "README.zh-CN.md",
+    "CHANGELOG.md",
+    "icon.svg",
+    "LICENSE"
+  ],
+  "keywords": [
+    "new-api",
+    "newapi",
+    "one-api",
+    "plugin",
+    "empty-response",
+    "404"
+  ],
+  "license": "MIT",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "test": "node --test"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/NKBaa/newapi-empty-404-plugin.git"
+  },
+  "homepage": "https://github.com/NKBaa/newapi-empty-404-plugin#readme",
+  "bugs": {
+    "url": "https://github.com/NKBaa/newapi-empty-404-plugin/issues"
+  }
+}

@@ -1,0 +1,88 @@
+{
+  "cases": [
+    {
+      "name": "empty JSON becomes 404",
+      "hook": "convertResponse",
+      "args": [
+        {},
+        {"status": 200, "headers": {"content-type": "application/json"}, "body": "{\"choices\":[]}"}
+      ],
+      "expected": {
+        "error": {
+          "status": 404,
+          "type": "invalid_request_error",
+          "code": "model_not_found",
+          "message": "Upstream returned an empty response; mapped to 404 model_not_found"
+        }
+      }
+    },
+    {
+      "name": "non-empty JSON passes through",
+      "hook": "convertResponse",
+      "args": [
+        {},
+        {"status": 200, "headers": {"content-type": "application/json"}, "body": "{\"choices\":[{\"message\":{\"content\":\"hello\"}}]}"}
+      ],
+      "expected": {
+        "body": "{\"choices\":[{\"message\":{\"content\":\"hello\"}}]}",
+        "contentType": "application/json"
+      }
+    },
+    {
+      "name": "role event is buffered",
+      "hook": "convertStreamEvent",
+      "args": [
+        {"state": {"seen": false, "pending": []}},
+        {"data": "{\"choices\":[{\"delta\":{\"role\":\"assistant\"}}]}"}
+      ],
+      "expected": {
+        "state": {
+          "seen": false,
+          "pending": [
+            {"data": "{\"choices\":[{\"delta\":{\"role\":\"assistant\"}}]}"}
+          ]
+        }
+      }
+    },
+    {
+      "name": "first content releases buffered events",
+      "hook": "convertStreamEvent",
+      "args": [
+        {"state": {"seen": false, "pending": [{"data": "{\"choices\":[{\"delta\":{\"role\":\"assistant\"}}]}"}]}},
+        {"data": "{\"choices\":[{\"delta\":{\"content\":\"hello\"}}]}"}
+      ],
+      "expected": {
+        "events": [
+          {"data": "{\"choices\":[{\"delta\":{\"role\":\"assistant\"}}]}"},
+          {"data": "{\"choices\":[{\"delta\":{\"content\":\"hello\"}}]}"}
+        ],
+        "state": {"seen": true, "pending": []}
+      }
+    },
+    {
+      "name": "empty stream ends as 404",
+      "hook": "convertStreamEvent",
+      "args": [
+        {"state": {"seen": false, "pending": [{"data": "{\"choices\":[{\"delta\":{\"role\":\"assistant\"}}]}"}]}},
+        {"done": true}
+      ],
+      "expected": {
+        "error": {
+          "status": 404,
+          "type": "invalid_request_error",
+          "code": "model_not_found",
+          "message": "Upstream returned an empty response; mapped to 404 model_not_found"
+        }
+      }
+    },
+    {
+      "name": "non-empty stream ends normally",
+      "hook": "convertStreamEvent",
+      "args": [
+        {"state": {"seen": true, "pending": []}},
+        {"done": true}
+      ],
+      "expected": {"state": {"seen": true, "pending": []}}
+    }
+  ]
+}
