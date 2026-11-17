@@ -1,12 +1,12 @@
 export const meta = {
   apiVersion: 1,
-  key: "newapi-empty-404",
-  name: "NewAPI Empty 404",
-  version: "1.0.0",
+  key: "newapi-empty-retry",
+  name: "NewAPI Empty Retry",
+  version: "1.1.0",
   author: { name: "NKBaa" },
   description: {
-    en: "Relay an upstream New API / One API channel and turn empty JSON or SSE answers into HTTP 404 model_not_found.",
-    zh: "作为 NewAPI 上游通道转发请求，并把空 JSON 或空 SSE 回复转换为 HTTP 404 model_not_found。",
+    en: "Relay an upstream New API / One API channel and turn empty JSON or SSE answers into retryable HTTP 400 empty_upstream_response.",
+    zh: "作为 NewAPI 上游通道转发请求，并把空 JSON 或空 SSE 回复转换为可配置重试的 HTTP 400 empty_upstream_response。",
   },
   relay: [
     { incoming_path: "/v1/chat/completions", upstream_path: "/v1/chat/completions", converter: "plugin" },
@@ -17,10 +17,10 @@ export const meta = {
 }
 
 const EMPTY_ERROR = {
-  status: 404,
+  status: 400,
   type: "invalid_request_error",
-  code: "model_not_found",
-  message: "Upstream returned an empty response; mapped to 404 model_not_found",
+  code: "empty_upstream_response",
+  message: "Upstream returned an empty response; mapped to retryable HTTP 400 empty_upstream_response",
 }
 
 function text(value) {
@@ -205,6 +205,8 @@ export function convertStreamEvent(ctx, input) {
   }
   return { state: next }
 }
+
+
 
 
 

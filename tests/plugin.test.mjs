@@ -14,7 +14,7 @@ function taskState(stream = true) {
 
 test("declares plugin provider routes", () => {
   assert.equal(meta.apiVersion, 1)
-  assert.equal(meta.key, "newapi-empty-404")
+  assert.equal(meta.key, "newapi-empty-retry")
   assert.deepEqual(meta.relay.map((route) => route.incoming_path), [
     "/v1/chat/completions",
     "/v1/responses",
@@ -31,7 +31,7 @@ test("forwards a non-empty Chat Completions response", () => {
   assert.deepEqual(JSON.parse(result.body), body)
 })
 
-test("maps empty and contentless JSON responses to 404", () => {
+test("maps empty and contentless JSON responses to retryable 400", () => {
   for (const body of [
     "",
     "{}",
@@ -40,12 +40,12 @@ test("maps empty and contentless JSON responses to 404", () => {
     { choices: [{ delta: { role: "assistant" }, finish_reason: "stop" }] },
   ]) {
     const result = convertResponse({}, jsonResponse(body))
-    assert.equal(result.error.status, 404)
-    assert.equal(result.error.code, "model_not_found")
+    assert.equal(result.error.status, 400)
+    assert.equal(result.error.code, "empty_upstream_response")
   }
 })
 
-test("rejects stream that ends without content before releasing events", () => {
+test("maps an empty stream to retryable 400 before releasing events", () => {
   const ctx = { state: taskState() }
   let result = convertStreamEvent(ctx, { data: '{"choices":[{"delta":{"role":"assistant"}}]}' })
   assert.equal(result.events, undefined)
@@ -57,8 +57,8 @@ test("rejects stream that ends without content before releasing events", () => {
   ctx.state = result.state
 
   result = convertStreamEvent(ctx, { done: true })
-  assert.equal(result.error.status, 404)
-  assert.equal(result.error.code, "model_not_found")
+  assert.equal(result.error.status, 400)
+  assert.equal(result.error.code, "empty_upstream_response")
 })
 
 test("buffers role events then releases them with the first content event", () => {
@@ -106,3 +106,4 @@ test("preserves upstream non-2xx errors", () => {
   assert.equal(result.error.message, "rate limited")
   assert.equal(result.error.code, "rate_limited")
 })
+

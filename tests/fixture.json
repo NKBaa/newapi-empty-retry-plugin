@@ -1,7 +1,7 @@
 {
   "cases": [
     {
-      "name": "empty JSON becomes 404",
+      "name": "empty JSON becomes retryable 400",
       "hook": "convertResponse",
       "args": [
         {},
@@ -9,10 +9,10 @@
       ],
       "expected": {
         "error": {
-          "status": 404,
+          "status": 400,
           "type": "invalid_request_error",
-          "code": "model_not_found",
-          "message": "Upstream returned an empty response; mapped to 404 model_not_found"
+          "code": "empty_upstream_response",
+          "message": "Upstream returned an empty response; mapped to retryable HTTP 400 empty_upstream_response"
         }
       }
     },
@@ -60,7 +60,7 @@
       }
     },
     {
-      "name": "empty stream ends as 404",
+      "name": "empty stream ends as retryable 400",
       "hook": "convertStreamEvent",
       "args": [
         {"state": {"seen": false, "pending": [{"data": "{\"choices\":[{\"delta\":{\"role\":\"assistant\"}}]}"}]}},
@@ -68,10 +68,10 @@
       ],
       "expected": {
         "error": {
-          "status": 404,
+          "status": 400,
           "type": "invalid_request_error",
-          "code": "model_not_found",
-          "message": "Upstream returned an empty response; mapped to 404 model_not_found"
+          "code": "empty_upstream_response",
+          "message": "Upstream returned an empty response; mapped to retryable HTTP 400 empty_upstream_response"
         }
       }
     },
@@ -86,3 +86,4 @@
     }
   ]
 }
+

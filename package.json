@@ -1,7 +1,7 @@
 {
-  "name": "newapi-empty-404-plugin",
-  "version": "1.0.0",
-  "description": "New API plugin that maps empty upstream JSON or SSE responses to HTTP 404 model_not_found.",
+  "name": "newapi-empty-retry-plugin",
+  "version": "1.1.0",
+  "description": "New API plugin that maps empty upstream responses to retryable HTTP 400 empty_upstream_response.",
   "type": "module",
   "main": "./plugin.js",
   "files": [
@@ -18,7 +18,7 @@
     "one-api",
     "plugin",
     "empty-response",
-    "404"
+    "retry"
   ],
   "license": "MIT",
   "engines": {
@@ -29,10 +29,10 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/NKBaa/newapi-empty-404-plugin.git"
+    "url": "git+https://github.com/NKBaa/newapi-empty-retry-plugin.git"
   },
-  "homepage": "https://github.com/NKBaa/newapi-empty-404-plugin#readme",
+  "homepage": "https://github.com/NKBaa/newapi-empty-retry-plugin#readme",
   "bugs": {
-    "url": "https://github.com/NKBaa/newapi-empty-404-plugin/issues"
+    "url": "https://github.com/NKBaa/newapi-empty-retry-plugin/issues"
   }
 }
