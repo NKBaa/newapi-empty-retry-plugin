@@ -93,13 +93,15 @@ New API 随后根据重试次数、模型路由和渠道亲和规则决定是否
 - 首个有效输出前的所有事件先被插件缓冲；
 - 出现文本、思考或工具调用后，把缓冲事件原样释放给客户端；
 - 如果流结束仍没有有效输出，因为客户端尚未收到任何事件，可以直接返回 HTTP `400`。
+- 如果首个有效输出前缓冲超过 64 个事件或 32768 个序列化字符，返回独立的 HTTP `502 empty_response_buffer_exceeded`，沿 5xx 重试，不再误报为空回。
+- NewAPI 的流式保活可能在首个有效输出前发送 PING 并提交 HTTP 200。此时插件仍可触发内部换渠道重试，但重试耗尽后客户端看到的是已打开的流，不一定能收到 400。若客户端必须收到 400，应关闭相应流式保活或禁用该渠道的 Ping。
 
 上游非 2xx 响应保留原状态码和错误信息。
 
 ## 支持的输出信号
 
 - OpenAI Chat Completions 的 `message` 和 `delta`；
-- OpenAI Responses 的文本和函数调用；
+- OpenAI Responses 的文本、函数调用、嵌套 `output` / `output_item`、完成事件和 reasoning summary；
 - Anthropic Messages 的文本、thinking 和工具块；
 - Gemini candidate 的文本、函数调用和内联数据；
 - 旧式 `choices[].text`。
@@ -113,11 +115,11 @@ new-api plugin lint plugin.js
 new-api plugin test plugin.js --fixture tests/fixture.json
 ```
 
-fixture 覆盖空 JSON、正常 JSON、role 事件缓冲、首个内容事件释放和空流终止。
+fixture 覆盖空 JSON、正常 JSON、role 事件缓冲、首个内容事件释放、空流终止、Gemini 流式地址和 Responses 嵌套工具调用。
 
 ## 限制
 
 - 不检查 embeddings、图片、音频或二进制响应。
-- 为保证流式空回也能在发送首个事件前返回 `400`，流会等待到第一个有效输出才开始释放。
+- 为保证流式空回也能在发送首个事件前返回 `400`，流会等待到第一个有效输出才开始释放。若 NewAPI 在该等待期已经发送保活 PING，客户端响应状态可能已是 200。
 - 非 JSON 的流事件按非空处理并原样透传。
 - 插件只负责把空回变成可重试的 400；还需要在自动重试范围加入 400，并且存在其它可用渠道。

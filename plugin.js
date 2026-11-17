@@ -2,7 +2,7 @@ export const meta = {
   apiVersion: 1,
   key: "newapi-empty-retry",
   name: "NewAPI Empty Retry",
-  version: "1.1.0",
+  version: "1.2.0",
   author: { name: "NKBaa" },
   description: {
     en: "Relay an upstream New API / One API channel and turn empty JSON or SSE answers into retryable HTTP 400 empty_upstream_response.",
@@ -21,6 +21,13 @@ const EMPTY_ERROR = {
   type: "invalid_request_error",
   code: "empty_upstream_response",
   message: "Upstream returned an empty response; mapped to retryable HTTP 400 empty_upstream_response",
+}
+
+const BUFFER_LIMIT_ERROR = {
+  status: 502,
+  type: "upstream_error",
+  code: "empty_response_buffer_exceeded",
+  message: "Upstream produced too many metadata events before any output; mapped to HTTP 502 to retry another channel",
 }
 
 function text(value) {
@@ -58,6 +65,17 @@ function meaningfulMessage(message) {
     || text(message.refusal)
 }
 
+function meaningfulOutputItem(item) {
+  if (!item || typeof item !== "object") return false
+  if (["function_call", "computer_call", "web_search_call", "tool_call"].includes(item.type)) return true
+  if (item.function_call || item.functionCall || item.tool_calls?.length) return true
+  if (meaningfulContent(item.content)) return true
+  if (item.type === "reasoning" && Array.isArray(item.summary)) {
+    return item.summary.some((part) => text(part?.text) || meaningfulPart(part))
+  }
+  return false
+}
+
 function meaningfulJson(value) {
   if (value == null) return false
   if (typeof value === "string") return text(value)
@@ -73,14 +91,10 @@ function meaningfulJson(value) {
   }
 
   if (text(value.output_text)) return true
-  if (Array.isArray(value.output)) {
-    for (const item of value.output) {
-      if (!item || typeof item !== "object") continue
-      if (["function_call", "computer_call", "web_search_call", "tool_call"].includes(item.type)) return true
-      if (item.arguments || item.function_call) return true
-      if (meaningfulContent(item.content)) return true
-    }
-  }
+  if (meaningfulOutputItem(value.item)) return true
+  if (Array.isArray(value.output) && value.output.some(meaningfulOutputItem)) return true
+  if (value.response && value.response !== value && meaningfulJson(value.response)) return true
+  if (Array.isArray(value.summary) && value.summary.some((part) => text(part?.text) || meaningfulPart(part))) return true
 
   if (Array.isArray(value.content) && meaningfulContent(value.content)) return true
   if (meaningfulMessage(value.delta)) return true
@@ -96,7 +110,13 @@ function meaningfulJson(value) {
     }
   }
 
-  if (text(value.delta) && ["response.output_text.delta", "response.function_call_arguments.delta"].includes(value.type)) return true
+  if (text(value.delta) && [
+    "response.output_text.delta",
+    "response.refusal.delta",
+    "response.function_call_arguments.delta",
+    "response.reasoning_summary_text.delta",
+    "response.reasoning_text.delta",
+  ].includes(value.type)) return true
   if (Array.isArray(value.parts) && value.parts.some((part) => meaningfulPart(part) || part?.functionCall || part?.inlineData)) return true
   return false
 }
@@ -152,16 +172,25 @@ function upstreamError(response) {
   return { error: { status, type, code, message: messageOf(response.body) } }
 }
 
+function geminiStreamPath(request) {
+  if (!request.stream || typeof request.path !== "string" || !request.path.startsWith("/v1beta/models/")) return ""
+  const path = request.path.replace(/:generateContent$/, ":streamGenerateContent")
+  return path.endsWith(":streamGenerateContent") ? `${path}?alt=sse` : ""
+}
+
 export function convertRequest(_ctx, request) {
   if (request.form) {
     return { form: request.form, stream: request.stream, state: { seen: false, pending: [] } }
   }
-  return {
+  const converted = {
     body: request.body,
     contentType: "application/json",
     stream: request.stream,
     state: { seen: false, pending: [] },
   }
+  const streamPath = geminiStreamPath(request)
+  if (streamPath) converted.path = streamPath
+  return converted
 }
 
 export function convertResponse(_ctx, response) {
@@ -201,7 +230,7 @@ export function convertStreamEvent(ctx, input) {
   const pending = [...state.pending, eventOf(input)]
   const next = { seen: false, pending }
   if (pending.length > 64 || JSON.stringify(pending).length > 32768) {
-    return { error: EMPTY_ERROR }
+    return { error: BUFFER_LIMIT_ERROR }
   }
   return { state: next }
 }

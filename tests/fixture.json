@@ -5,7 +5,13 @@
       "hook": "convertResponse",
       "args": [
         {},
-        {"status": 200, "headers": {"content-type": "application/json"}, "body": "{\"choices\":[]}"}
+        {
+          "status": 200,
+          "headers": {
+            "content-type": "application/json"
+          },
+          "body": "{\"choices\":[]}"
+        }
       ],
       "expected": {
         "error": {
@@ -21,7 +27,13 @@
       "hook": "convertResponse",
       "args": [
         {},
-        {"status": 200, "headers": {"content-type": "application/json"}, "body": "{\"choices\":[{\"message\":{\"content\":\"hello\"}}]}"}
+        {
+          "status": 200,
+          "headers": {
+            "content-type": "application/json"
+          },
+          "body": "{\"choices\":[{\"message\":{\"content\":\"hello\"}}]}"
+        }
       ],
       "expected": {
         "body": "{\"choices\":[{\"message\":{\"content\":\"hello\"}}]}",
@@ -32,14 +44,23 @@
       "name": "role event is buffered",
       "hook": "convertStreamEvent",
       "args": [
-        {"state": {"seen": false, "pending": []}},
-        {"data": "{\"choices\":[{\"delta\":{\"role\":\"assistant\"}}]}"}
+        {
+          "state": {
+            "seen": false,
+            "pending": []
+          }
+        },
+        {
+          "data": "{\"choices\":[{\"delta\":{\"role\":\"assistant\"}}]}"
+        }
       ],
       "expected": {
         "state": {
           "seen": false,
           "pending": [
-            {"data": "{\"choices\":[{\"delta\":{\"role\":\"assistant\"}}]}"}
+            {
+              "data": "{\"choices\":[{\"delta\":{\"role\":\"assistant\"}}]}"
+            }
           ]
         }
       }
@@ -48,23 +69,52 @@
       "name": "first content releases buffered events",
       "hook": "convertStreamEvent",
       "args": [
-        {"state": {"seen": false, "pending": [{"data": "{\"choices\":[{\"delta\":{\"role\":\"assistant\"}}]}"}]}},
-        {"data": "{\"choices\":[{\"delta\":{\"content\":\"hello\"}}]}"}
+        {
+          "state": {
+            "seen": false,
+            "pending": [
+              {
+                "data": "{\"choices\":[{\"delta\":{\"role\":\"assistant\"}}]}"
+              }
+            ]
+          }
+        },
+        {
+          "data": "{\"choices\":[{\"delta\":{\"content\":\"hello\"}}]}"
+        }
       ],
       "expected": {
         "events": [
-          {"data": "{\"choices\":[{\"delta\":{\"role\":\"assistant\"}}]}"},
-          {"data": "{\"choices\":[{\"delta\":{\"content\":\"hello\"}}]}"}
+          {
+            "data": "{\"choices\":[{\"delta\":{\"role\":\"assistant\"}}]}"
+          },
+          {
+            "data": "{\"choices\":[{\"delta\":{\"content\":\"hello\"}}]}"
+          }
         ],
-        "state": {"seen": true, "pending": []}
+        "state": {
+          "seen": true,
+          "pending": []
+        }
       }
     },
     {
       "name": "empty stream ends as retryable 400",
       "hook": "convertStreamEvent",
       "args": [
-        {"state": {"seen": false, "pending": [{"data": "{\"choices\":[{\"delta\":{\"role\":\"assistant\"}}]}"}]}},
-        {"done": true}
+        {
+          "state": {
+            "seen": false,
+            "pending": [
+              {
+                "data": "{\"choices\":[{\"delta\":{\"role\":\"assistant\"}}]}"
+              }
+            ]
+          }
+        },
+        {
+          "done": true
+        }
       ],
       "expected": {
         "error": {
@@ -79,11 +129,75 @@
       "name": "non-empty stream ends normally",
       "hook": "convertStreamEvent",
       "args": [
-        {"state": {"seen": true, "pending": []}},
-        {"done": true}
+        {
+          "state": {
+            "seen": true,
+            "pending": []
+          }
+        },
+        {
+          "done": true
+        }
       ],
-      "expected": {"state": {"seen": true, "pending": []}}
+      "expected": {
+        "state": {
+          "seen": true,
+          "pending": []
+        }
+      }
+    },
+    {
+      "name": "Gemini stream uses streamGenerateContent SSE",
+      "hook": "convertRequest",
+      "args": [
+        {},
+        {
+          "path": "/v1beta/models/gemini-2.5-flash:streamGenerateContent",
+          "body": {
+            "contents": []
+          },
+          "model": "gemini-2.5-flash",
+          "stream": true
+        }
+      ],
+      "expected": {
+        "body": {
+          "contents": []
+        },
+        "contentType": "application/json",
+        "stream": true,
+        "state": {
+          "seen": false,
+          "pending": []
+        },
+        "path": "/v1beta/models/gemini-2.5-flash:streamGenerateContent?alt=sse"
+      }
+    },
+    {
+      "name": "Responses output item tool call is meaningful",
+      "hook": "convertStreamEvent",
+      "args": [
+        {
+          "state": {
+            "seen": false,
+            "pending": []
+          }
+        },
+        {
+          "data": "{\"type\":\"response.output_item.added\",\"item\":{\"type\":\"function_call\",\"name\":\"lookup\",\"call_id\":\"call_1\",\"arguments\":\"\"}}"
+        }
+      ],
+      "expected": {
+        "events": [
+          {
+            "data": "{\"type\":\"response.output_item.added\",\"item\":{\"type\":\"function_call\",\"name\":\"lookup\",\"call_id\":\"call_1\",\"arguments\":\"\"}}"
+          }
+        ],
+        "state": {
+          "seen": true,
+          "pending": []
+        }
+      }
     }
   ]
 }
-

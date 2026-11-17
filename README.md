@@ -99,14 +99,16 @@ Streaming responses:
 
 - all events before the first useful output are buffered;
 - when text, reasoning, tool calls or another supported output arrives, buffered events are released unchanged;
-- if the stream ends without any useful output, no client event has been released and the plugin returns HTTP `400`.
+- if the stream ends without any useful output, no client event has been released and the plugin returns HTTP `400`;
+- if more than 64 events or 32768 serialized characters are buffered before the first useful output, the plugin returns a separate HTTP `502 empty_response_buffer_exceeded`, which follows the 5xx retry policy instead of being reported as empty;
+- New API stream keepalive may send a PING before the first useful output and commit HTTP 200. Internal retries can still continue, but an exhausted retry budget may end an already-open stream instead of returning 400 to the client. Disable the relevant keepalive or Ping when the client must receive the 400 status.
 
 Upstream non-2xx responses keep their original status and message.
 
 ## Supported output signals
 
 - OpenAI Chat Completions `message` and `delta`;
-- OpenAI Responses text and function-call output;
+- OpenAI Responses text, function calls, nested `output` / `output_item`, completed-response output and reasoning summaries;
 - Anthropic Messages text, thinking and tool blocks;
 - Gemini candidate text, function calls and inline data;
 - legacy `choices[].text`.
@@ -120,11 +122,11 @@ new-api plugin lint plugin.js
 new-api plugin test plugin.js --fixture tests/fixture.json
 ```
 
-The fixture covers empty JSON, normal JSON, buffered role events, first content release and empty stream termination.
+The fixture covers empty JSON, normal JSON, buffered role events, first content release, empty stream termination, the Gemini streaming endpoint and nested Responses tool calls.
 
 ## Limits
 
 - The plugin does not inspect embeddings, image, audio or binary responses.
-- A stream is delayed until its first useful output because events are held to guarantee a pre-stream `400`.
+- A stream is delayed until its first useful output because events are held to guarantee a pre-stream `400`. If New API sends a keepalive PING during that wait, the client may already have an HTTP 200 response.
 - Non-JSON stream data is treated as non-empty and passed through.
 - This plugin changes only the provider channel's error status; retry still requires `400` in the retry ranges and another eligible channel.

@@ -107,3 +107,57 @@ test("preserves upstream non-2xx errors", () => {
   assert.equal(result.error.code, "rate_limited")
 })
 
+
+test("uses the Gemini streaming endpoint with SSE for streaming requests", () => {
+  const result = convertRequest({}, {
+    path: "/v1beta/models/gemini-2.5-flash:streamGenerateContent",
+    body: { contents: [] },
+    model: "gemini-2.5-flash",
+    stream: true,
+  })
+  assert.equal(result.path, "/v1beta/models/gemini-2.5-flash:streamGenerateContent?alt=sse")
+  assert.equal(result.contentType, "application/json")
+})
+
+test("recognizes nested and completed Responses output", () => {
+  const completed = convertResponse({}, jsonResponse({
+    object: "response",
+    output: [{ type: "reasoning", summary: [{ type: "summary_text", text: "reasoned" }] }],
+  }))
+  assert.equal(completed.error, undefined)
+
+  let result = convertStreamEvent({ state: taskState() }, {
+    data: JSON.stringify({
+      type: "response.output_item.added",
+      item: { type: "function_call", name: "lookup", call_id: "call_1", arguments: "" },
+    }),
+  })
+  assert.equal(result.state.seen, true)
+
+  result = convertStreamEvent({ state: taskState() }, {
+    data: JSON.stringify({
+      type: "response.completed",
+      response: {
+        object: "response",
+        output: [{ type: "message", content: [{ type: "output_text", text: "hello" }] }],
+      },
+    }),
+  })
+  assert.equal(result.state.seen, true)
+
+  result = convertStreamEvent({ state: taskState() }, {
+    data: JSON.stringify({ type: "response.reasoning_summary_text.delta", delta: "reasoning" }),
+  })
+  assert.equal(result.state.seen, true)
+})
+
+test("uses a separate retryable error when pre-output buffering exceeds its limit", () => {
+  const ctx = { state: taskState() }
+  let result
+  for (let index = 0; index < 65; index++) {
+    result = convertStreamEvent(ctx, { event: "ping", data: '{"type":"ping"}' })
+    if (result.state) ctx.state = result.state
+  }
+  assert.equal(result.error.status, 502)
+  assert.equal(result.error.code, "empty_response_buffer_exceeded")
+})

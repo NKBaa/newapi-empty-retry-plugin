@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.2.0] - 2026-11-17
+
+### Fixed
+
+- Route Gemini streaming requests to `streamGenerateContent?alt=sse`.
+- Recognize nested OpenAI Responses output items, completed responses and reasoning summaries.
+- Return a separate retryable `502 empty_response_buffer_exceeded` error when metadata buffering exceeds its limit.
+- Document New API stream keepalive behavior before the first useful output.
+
 ## [1.1.0] - 2026-11-17
 
 ### Changed
